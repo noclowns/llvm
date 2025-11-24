@@ -238,7 +238,7 @@ protected:
 
     bool ReferencesStorage = false;
     int64_t Index = -1;
-    if (!U::TakesParamByValue) {
+    if constexpr (!U::TakesParamByValue) {
       if (LLVM_UNLIKELY(This->isReferenceToStorage(&Elt))) {
         ReferencesStorage = true;
         Index = &Elt - This->begin();
@@ -627,11 +627,13 @@ private:
     }
 
     this->reserve(N);
+
     for (auto I = this->end(), E = this->begin() + N; I != E; ++I)
-      if (ForOverwrite)
+      if constexpr (ForOverwrite)
         new (&*I) T;
       else
         new (&*I) T();
+
     this->set_size(N);
   }
 
@@ -801,9 +803,10 @@ private:
     // the reference (never happens if TakesParamByValue).
     static_assert(!TakesParamByValue || std::is_same<ArgType, T>::value,
                   "ArgType must be 'T' when taking by value!");
-    if (!TakesParamByValue && this->isReferenceToRange(EltPtr, I, this->end()))
-      ++EltPtr;
-
+    if constexpr (!TakesParamByValue) {
+      if (this->isReferenceToRange(EltPtr, I, this->end()))
+        ++EltPtr;
+    }
     *I = ::std::forward<ArgType>(*EltPtr);
     return I;
   }
@@ -849,9 +852,10 @@ public:
 
       // If we just moved the element we're inserting, be sure to update
       // the reference (never happens if TakesParamByValue).
-      if (!TakesParamByValue && I <= EltPtr && EltPtr < this->end())
-        EltPtr += NumToInsert;
-
+      if constexpr (!TakesParamByValue) {
+        if (I <= EltPtr && EltPtr < this->end())
+          EltPtr += NumToInsert;
+      }
       std::fill_n(I, NumToInsert, *EltPtr);
       return I;
     }
@@ -867,9 +871,10 @@ public:
 
     // If we just moved the element we're inserting, be sure to update
     // the reference (never happens if TakesParamByValue).
-    if (!TakesParamByValue && I <= EltPtr && EltPtr < this->end())
-      EltPtr += NumToInsert;
-
+    if constexpr (!TakesParamByValue) {
+      if (I <= EltPtr && EltPtr < this->end())
+        EltPtr += NumToInsert;
+    }
     // Replace the overwritten part.
     std::fill_n(I, NumOverwritten, *EltPtr);
 
