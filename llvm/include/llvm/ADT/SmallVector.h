@@ -760,10 +760,21 @@ public:
     assert(this->isReferenceToStorage(CI) && "Iterator to erase is out of bounds.");
 
     iterator N = I;
-    // Shift all elts down one.
-    std::move(I+1, this->end(), I);
-    // Drop the last elt.
-    this->pop_back();
+
+    if constexpr (std::is_trivially_copyable_v<T>) {
+      size_t num_after = this->end() - (I + 1);
+      if (num_after > 0) {
+        std::memmove(static_cast<void *>(I), static_cast<const void *>(I + 1),
+                     num_after * sizeof(T));
+      }
+      this->set_size(this->size() - 1);
+    } else {
+
+      // Shift all elts down one.
+      std::move(I + 1, this->end(), I);
+      // Drop the last elt.
+      this->pop_back();
+    }
     return(N);
   }
 
@@ -774,12 +785,25 @@ public:
 
     assert(this->isRangeInStorage(S, E) && "Range to erase is out of bounds.");
 
+    if (S == E)
+      return S;
+
     iterator N = S;
-    // Shift all elts down.
-    iterator I = std::move(E, this->end(), S);
-    // Drop the last elts.
-    this->destroy_range(I, this->end());
-    this->set_size(I - this->begin());
+
+    if constexpr (std::is_trivially_copyable_v<T>) {
+      size_type num_to_erase = E - S;
+      size_type num_after = this->end() - E;
+      if (num_after > 0) {
+        std::memmove(static_cast<void *>(S), static_cast<const void *>(E),
+                     num_after * sizeof(T));
+      }
+      this->set_size(this->size() - num_to_erase);
+    } else {
+      iterator I = std::move(E, this->end(), S);
+      this->destroy_range(I, this->end());
+      this->set_size(I - this->begin());
+    }
+
     return(N);
   }
 
