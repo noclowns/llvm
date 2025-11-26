@@ -628,11 +628,21 @@ private:
 
     this->reserve(N);
 
-    for (auto I = this->end(), E = this->begin() + N; I != E; ++I)
-      if constexpr (ForOverwrite)
-        new (&*I) T;
-      else
-        new (&*I) T();
+    // Use batch init for trivial types
+    if constexpr (std::is_trivially_copyable_v<T> &&
+                  std::is_trivially_default_constructible_v<T> &&
+                  std::is_trivially_destructible_v<T>) {
+      if constexpr (!ForOverwrite)
+        std::memset(this->end(), 0, (N - this->size()) * sizeof(T));
+      // ForOverwrite: skip initialization entirely
+    } else {
+      // Non-trivial types: construct individually
+      for (auto I = this->end(), E = this->begin() + N; I != E; ++I)
+        if constexpr (ForOverwrite)
+          new (&*I) T;
+        else
+          new (&*I) T();
+    }
 
     this->set_size(N);
   }
