@@ -560,9 +560,18 @@ protected:
 
 public:
   void push_back(ValueParamT Elt) {
-    const T *EltPtr = reserveForParamAndGetAddress(Elt);
-    std::memcpy(reinterpret_cast<void *>(this->end()), EltPtr, sizeof(T));
-    this->set_size(this->size() + 1);
+    if constexpr (TakesParamByValue) {
+      // Fast path: Elt is already a copy, can't be internal reference
+      if (LLVM_UNLIKELY(this->size() >= this->capacity()))
+        this->grow();
+      std::memcpy(this->end(), &Elt, sizeof(T)); // Direct copy!
+      this->set_size(this->size() + 1);
+    } else {
+      // Slow path: use existing logic
+      const T *EltPtr = reserveForParamAndGetAddress(Elt);
+      std::memcpy(this->end(), EltPtr, sizeof(T));
+      this->set_size(this->size() + 1);
+    }
   }
 
   void pop_back() { this->set_size(this->size() - 1); }
