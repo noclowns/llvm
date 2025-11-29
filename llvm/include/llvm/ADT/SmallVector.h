@@ -62,12 +62,14 @@ protected:
   }
 
   /// Extract the pointer from BeginX, masking out the isSmall flag.
+  LLVM_ATTRIBUTE_ALWAYS_INLINE
   void *getBeginPtr() const {
     return reinterpret_cast<void *>(reinterpret_cast<uintptr_t>(BeginX) &
                                     ~uintptr_t{1});
   }
 
   /// Set the BeginX pointer with the isSmall flag.
+  LLVM_ATTRIBUTE_ALWAYS_INLINE
   void setBeginPtr(void *Ptr, bool IsSmall) {
     uintptr_t PtrVal = reinterpret_cast<uintptr_t>(Ptr);
     assert((PtrVal & 1) == 0 && "Pointer must be at least 2-byte aligned");
