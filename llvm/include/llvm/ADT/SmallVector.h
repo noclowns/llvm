@@ -61,10 +61,28 @@ protected:
     return std::numeric_limits<Size_T>::max();
   }
 
+  /// Extract the pointer from BeginX, masking out the isSmall flag.
+  void *getBeginPtr() const {
+    return reinterpret_cast<void *>(reinterpret_cast<uintptr_t>(BeginX) &
+                                    ~uintptr_t{1});
+  }
+
+  /// Set the BeginX pointer with the isSmall flag.
+  void setBeginPtr(void *Ptr, bool IsSmall) {
+    uintptr_t PtrVal = reinterpret_cast<uintptr_t>(Ptr);
+    assert((PtrVal & 1) == 0 && "Pointer must be at least 2-byte aligned");
+    BeginX =
+        reinterpret_cast<void *>((PtrVal & ~uintptr_t{1}) | (IsSmall ? 1 : 0));
+  }
+
   SmallVectorBase() = delete;
   SmallVectorBase(void *FirstEl, size_t TotalCapacity)
-      : BeginX(FirstEl), Capacity(static_cast<Size_T>(TotalCapacity)) {}
-
+      : BeginX(
+            reinterpret_cast<void *>(reinterpret_cast<uintptr_t>(FirstEl) | 1)),
+        Capacity(static_cast<Size_T>(TotalCapacity)) {
+    assert((reinterpret_cast<uintptr_t>(FirstEl) & 1) == 0 &&
+           "FirstEl must be at least 2-byte aligned");
+  }
   /// This is a helper for \a grow() that's out of line to reduce code
   /// duplication.  This function will report a fatal error if it can't grow at
   /// least to \p MinSize.
@@ -98,7 +116,7 @@ protected:
   //  This does not clean up any existing allocation.
   void set_allocation_range(void *Begin, size_t N) {
     assert(N <= SizeTypeMax());
-    BeginX = Begin;
+    setBeginPtr(Begin, false); // Heap allocation, not small
     Capacity = static_cast<Size_T>(N);
   }
 };
@@ -142,11 +160,15 @@ protected:
 
   /// Return true if this is a smallvector which has not had dynamic
   /// memory allocated for it.
-  bool isSmall() const { return this->BeginX == getFirstEl(); }
+
+  bool isSmall() const {
+    // Use LSB of BeginX as the isSmall flag
+    return reinterpret_cast<uintptr_t>(this->BeginX) & 1;
+  }
 
   /// Put this vector in a state of being small.
   void resetToSmall() {
-    this->BeginX = getFirstEl();
+    this->setBeginPtr(getFirstEl(), true); // Set isSmall=true
     this->Size = this->Capacity = 0; // FIXME: Setting Capacity to 0 is suspect.
   }
 
@@ -268,8 +290,9 @@ public:
   using Base::size;
 
   // forward iterator creation methods.
-  iterator begin() { return (iterator)this->BeginX; }
-  const_iterator begin() const { return (const_iterator)this->BeginX; }
+
+  iterator begin() { return (iterator)this->getBeginPtr(); }
+  const_iterator begin() const { return (const_iterator)this->getBeginPtr(); }
   iterator end() { return begin() + size(); }
   const_iterator end() const { return begin() + size(); }
 

@@ -56,6 +56,24 @@ static_assert(sizeof(SmallVector<char, 0>) ==
                   sizeof(void *) * 2 + sizeof(void *),
               "1 byte elements have word-sized type for size and capacity");
 
+// Verify alignment for bit-stealing optimization.
+// The LSB of BeginX is used to store the isSmall flag, which requires
+// that all pointers stored in BeginX are at least 2-byte aligned.
+// This is guaranteed by the alignment of Size_T (uint32_t or uint64_t),
+// which ensures alignof(SmallVectorBase) >= 4, making the address of
+// BeginX (at offset 0) also at least 4-byte aligned.
+// static_assert(alignof(SmallVectorBase) >= 2,
+//               "SmallVectorBase must be at least 2-byte aligned for "
+//               "bit-stealing optimization");
+static_assert(alignof(SmallVectorBase<uint32_t>) >= 2,
+              "SmallVectorBase<uint32_t> must be at least 2-byte aligned");
+static_assert(alignof(SmallVectorBase<uint64_t>) >= 2,
+              "SmallVectorBase<uint64_t> must be at least 2-byte aligned");
+static_assert(alignof(SmallVector<char, 0>) >= 2,
+              "SmallVector<char> must be at least 2-byte aligned");
+static_assert(alignof(SmallVector<int, 0>) >= 2,
+              "SmallVector<int> must be at least 2-byte aligned");
+
 /// Report that MinSize doesn't fit into this vector's size type. Throws
 /// std::length_error or calls report_fatal_error.
 [[noreturn]] static void report_size_overflow(size_t MinSize, size_t MaxSize);
@@ -147,16 +165,17 @@ void SmallVectorBase<Size_T>::grow_pod(void *FirstEl, size_t MinSize,
                                        size_t TSize) {
   size_t NewCapacity = getNewCapacity<Size_T>(MinSize, TSize, this->capacity());
   void *NewElts;
-  if (BeginX == FirstEl) {
+  void *BeginPtr = getBeginPtr();
+  if (BeginPtr == FirstEl) {
     NewElts = llvm::safe_malloc(NewCapacity * TSize);
     if (NewElts == FirstEl)
       NewElts = replaceAllocation(NewElts, TSize, NewCapacity);
 
     // Copy the elements over.  No need to run dtors on PODs.
-    memcpy(NewElts, this->BeginX, size() * TSize);
+    memcpy(NewElts, BeginPtr, size() * TSize);
   } else {
     // If this wasn't grown from the inline copy, grow the allocated space.
-    NewElts = llvm::safe_realloc(this->BeginX, NewCapacity * TSize);
+    NewElts = llvm::safe_realloc(BeginPtr, NewCapacity * TSize);
     if (NewElts == FirstEl)
       NewElts = replaceAllocation(NewElts, TSize, NewCapacity, size());
   }
