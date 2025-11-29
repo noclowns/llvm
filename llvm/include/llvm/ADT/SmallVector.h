@@ -72,19 +72,13 @@ protected:
   LLVM_ATTRIBUTE_ALWAYS_INLINE
   void setBeginPtr(void *Ptr, bool IsSmall) {
     uintptr_t PtrVal = reinterpret_cast<uintptr_t>(Ptr);
-    assert((PtrVal & 1) == 0 && "Pointer must be at least 2-byte aligned");
     BeginX =
-        reinterpret_cast<void *>((PtrVal & ~uintptr_t{1}) | (IsSmall ? 1 : 0));
+        reinterpret_cast<void *>((PtrVal & ~uintptr_t{1}) | (IsSmall ? 0 : 1));
   }
 
   SmallVectorBase() = delete;
   SmallVectorBase(void *FirstEl, size_t TotalCapacity)
-      : BeginX(
-            reinterpret_cast<void *>(reinterpret_cast<uintptr_t>(FirstEl) | 1)),
-        Capacity(static_cast<Size_T>(TotalCapacity)) {
-    assert((reinterpret_cast<uintptr_t>(FirstEl) & 1) == 0 &&
-           "FirstEl must be at least 2-byte aligned");
-  }
+      : BeginX(FirstEl), Capacity(static_cast<Size_T>(TotalCapacity)) {}
   /// This is a helper for \a grow() that's out of line to reduce code
   /// duplication.  This function will report a fatal error if it can't grow at
   /// least to \p MinSize.
@@ -165,7 +159,7 @@ protected:
 
   bool isSmall() const {
     // Use LSB of BeginX as the isSmall flag
-    return reinterpret_cast<uintptr_t>(this->BeginX) & 1;
+    return !(reinterpret_cast<uintptr_t>(this->BeginX) & 1);
   }
 
   /// Put this vector in a state of being small.
