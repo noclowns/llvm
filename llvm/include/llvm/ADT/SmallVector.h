@@ -341,8 +341,8 @@ protected:
 
   static void destroy_range(T *S, T *E) {
     while (S != E) {
-      --E;
-      E->~T();
+      S->~T();
+      ++S;  
     }
   }
 
